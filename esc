@@ -1,0 +1,257 @@
+##!/bin/bash
+
+
+# to do: correct 'in front of you' output with items - "there is something in front of you"
+# implement 'crafting' system (combining a branch with matches to make a torch)
+# having an item (swimsuit) in inventory enables crossing associated terrain (river)
+
+
+# game initialization
+start_x=1
+start_y=1
+end_x=2
+end_y=4
+max_x=4
+max_y=4
+game_over=0
+p_x=$start_x
+p_y=$start_y
+p_dir="east"
+declare -A map
+map["0,0"]="SW"
+map["0,1"]="SW"
+map["0,2"]="SW"
+map["0,3"]="SW"
+map["0,4"]="SW"
+map["1,0"]="SW"
+map["2,0"]="SW"
+map["2,1"]="TR"
+map["3,0"]="SW"
+map["4,0"]="SW"
+map["4,1"]="SW"
+map["4,2"]="SW"
+map["4,3"]="SW"
+map["4,4"]="SW"
+map["3,4"]="SW"
+map["2,4"]="TD"
+map["1,4"]="SW"
+map["1,1"]="Ispoon"
+map["2,2"]="Ikey"
+
+declare -A c2t
+c2t["SW"]="a wall"
+c2t["TR"]="a river"
+
+bag="coin paper"
+
+clear
+echo
+echo -e "\033[30;101mWelcome to Escape (v4.0)\033[0m"
+echo
+echo "You are a prisoner locked in a room. Find your way out!"
+echo
+
+
+# functions
+
+function valid_move(){
+	#map borders
+	if [ "$1" -lt "0" ] || [ "$2" -lt "0" ] || [ "$1" -gt $max_x ] || [ "$2" -gt $max_y ]
+		then
+		echo "You can't go beyond map borders"
+		false; return
+	fi
+	#obstacles
+	case ${map[$1,$2]} in
+		*SW*)
+		echo
+		echo -e "\033[31mWhoops. You hit a wall.\033[0m"
+		false; return;;
+		*TR*)
+		echo
+		echo -e "\033[31mThere's a river and you can't swim (yet).\033[0m"
+		false; return;;
+		*TD*)
+		echo
+		echo -e "\033[31mCannot proceed just yet, this door is locked.\033[0m"
+		false; return;;
+	esac
+
+	true; return
+}
+
+
+
+# main cycle
+while [ "$game_over" = "0" ];
+do
+	echo
+	echo "Your position is (x,y): $p_x, $p_y and you are looking $p_dir"
+
+	np=${map[$p_x,$((p_y+1))]}; if [[ -z $np ]]; then np="nothing"; else np=${c2t[$np]}; fi
+	ep=${map[$((p_x+1)),$p_y]}; if [[ -z $ep ]]; then ep="nothing"; else ep=${c2t[$ep]}; fi
+	sp=${map[$p_x,$((p_y-1))]}; if [[ -z $sp ]]; then sp="nothing"; else sp=${c2t[$sp]}; fi
+	wp=${map[$((p_x-1)),$p_y]}; if [[ -z $wp ]]; then wp="nothing"; else wp=${c2t[$wp]}; fi
+
+	case $p_dir in
+		east)	echo "There is $ep in front of you.";;
+		south)	echo "There is $sp in front of you.";;
+		west)	echo "There is $wp in front of you.";;
+		north)	echo "There is $np in front of you.";;
+	esac
+
+
+	if [[ ! -z ${map[$p_x,$p_y]} ]]; then
+		echo "Look! There is something over here:"
+	fi
+	titems=${map[$p_x,$p_y]}
+	for item in ${titems[@]}; do
+		if [[ ${item} == I* ]]; then
+			echo ${item:1:100}
+		fi
+	done
+	echo "What do you want to do next?"
+	read -r t
+	t=${t,,}
+	clear
+
+	case $t in
+		f|forward) case $p_dir in
+				east) t="ge" ;;
+				west) t="gw" ;;
+				north) t="gn" ;;
+				south) t="gs" ;;
+			   esac ;;
+		b|backward) case $p_dir in
+				east) t="gw" ;;
+				west) t="ge" ;;
+				north) t="gs" ;;
+				south) t="gn" ;;
+			   esac ;;
+	esac
+
+	case $t in
+		l|left)
+			case $p_dir in
+				east) p_dir="north" ;;
+				west) p_dir="south" ;;
+				north) p_dir="west" ;;
+				south) p_dir="east" ;;
+			esac ;;
+		r|right)
+			case $p_dir in
+				east) p_dir="south" ;;
+				west) p_dir="north" ;;
+				north) p_dir="east" ;;
+				south) p_dir="west" ;;
+			esac ;;
+		ta|turnaround)
+			case $p_dir in
+				east) p_dir="west" ;;
+				west) p_dir="east" ;;
+				north) p_dir="south" ;;
+				south) p_dir="north" ;;
+			esac ;;
+		gw|gowest)  if valid_move $((p_x-1)) $p_y; then ((p_x-=1));fi ;;
+		gs|gosouth) if valid_move $p_x $((p_y-1)); then ((p_y-=1));fi ;;
+		gn|gonorth) if valid_move $p_x $((p_y+1)); then ((p_y+=1));fi ;;
+		ge|goeast)  if valid_move $((p_x+1)) $p_y; then ((p_x+=1));fi ;;
+		in|inventory)
+			echo
+			echo "Your inventory:"
+			for item in ${bag[@]}; do
+				echo $item
+			done
+			echo;;
+		use*)
+			tarray=($t); to_use=${tarray[1]}; in_bag=0
+			for item in ${bag[@]}; do
+				if [[ ${item} == $to_use ]]; then
+					in_bag=1
+				fi
+			done
+			if [[ $in_bag != "1" ]]; then
+				echo "You don't have $to_use in your inventory"
+			else
+				case $to_use in
+					key) 
+						map[2,4]=""
+						echo "Door unlocked"
+						;;
+					*) echo "you can't use $to_use yet (wip)"
+				esac
+			fi;;
+		drop*)
+			tbag=""
+			tarray=($t); to_drop=${tarray[1]}
+			for item in ${bag[@]}; do
+				if [[ ${item} != $to_drop ]]; then
+					tbag="$tbag $item"
+				fi
+			done
+			if [[ $tbag == $bag ]]; then
+				echo "Nothing to drop. Item <$to_drop> not found in your inventory"
+			else
+				map[$p_x,$p_y]="${map[$p_x,$p_y]} I$to_drop"
+				bag=$tbag
+				echo "Item <$to_drop> dropped."
+			fi;;
+		pu*|pickup*)
+			tmap=""
+			tarray=($t); to_pickup=${tarray[1]}
+			titems=${map[$p_x,$p_y]}
+			for item in ${titems[@]}; do
+				if [[ ${item} != "I$to_pickup" ]]; then
+				tmap="$tmap $item"
+				fi
+			done
+			if [[ $tmap == $titems ]]; then
+				echo "Nothing to pick up. Item <$to_pickup> not found around you"
+			else
+				bag="$bag $to_pickup"
+				map[$p_x,$p_y]=$tmap
+				echo "Item <$to_pickup> picked up."
+			fi;;
+		x|giveup)	game_over=9 ;;
+		help)
+			echo
+			echo -e "\033[1mHere are some commands to help you with your escape:\033[0m"
+			echo
+			echo -e "\033[33mCurrent position commands\033[0m"
+			echo "  left (l)        - turn left"
+			echo "  right (r)       - turn right"
+			echo "  turnaround (ta) - (self explanatory)"
+			echo
+			echo -e "\033[33mInventory commands\033[0m"
+			echo "  pickup [item] (pu)     - pick up selected item and place it in your inventory"
+			echo "  inventory (in)         - list items in your inventory"
+			echo "  use [item]             - (self explanatory)"
+			echo "  drop [item]            - put an item from your inventory on the ground"
+			echo
+			echo -e "\033[33mMovement commands\033[0m"
+			echo "  forward(f)      - move 1 step forward in your direction"
+			echo "  backward(b)     - move 1 step backward opposite to your direction"
+			echo "  gowest (gw)     - move 1 step to west"
+			echo "  goeast (ge)     - move 1 step to east"
+			echo "  gosouth (gs)    - move 1 step to south"
+			echo "  gonorth (gn)    - move 1 step to north"
+			echo
+			echo -e "\033[33mOther commands\033[0m"
+			echo "  giveup          - use only when you are totally hopeless"
+			echo "  help            - show this list of available actions"
+			;;
+		*)
+			echo
+			echo -e "\033[31mSorry, don't understand. Say help or giveup :)\033[0m"
+	esac
+	if [ "$p_y" -eq "$end_y" ] && [ "$p_x" -eq "$end_x" ]; then game_over=1;fi
+done
+
+
+# show results and end the game
+echo
+case $game_over in
+	1) echo -e "\033[32mWell done! You successfully escaped :-)\033[0m";;
+	*) echo -e "\033[36mSorry to see you going. Give it another try next time! :-)\033[0m"
+esac
+echo
