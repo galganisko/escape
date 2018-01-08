@@ -7,8 +7,6 @@
 
 #	having an item (swimsuit) in inventory enables crossing associated terrain (river)
 
-#	fix a bug where you can create an item on first pickup
-
 # game initialization
 start_x=1
 start_y=1
@@ -50,17 +48,17 @@ c2t["I"]="something"
 
 #Code to graphics
 declare -A c2g
-c2g["SW"]="\033[90mX\033[0m"
-c2g["TR"]="\033[34m~\033[0m"
-c2g["TD"]="\033[31mD\033[0m"
-c2g["I"]="\033[33mI\033[0m"
+c2g["SW"]="\033[90mX"
+c2g["TR"]="\033[34m~"
+c2g["TD"]="\033[31mD"
+c2g["I"]="\033[33mI"
 
 bag="coin paper"
-torch_lit=0
+torch_lit=1
 
 clear
 echo
-echo -e "\033[30;101mWelcome to Escape (v5.0)\033[0m"
+echo -e "\033[30;101mWelcome to Escape (v5.1)\033[0m"
 echo
 echo "You are a prisoner locked in a room. Find your way out!"
 echo
@@ -75,98 +73,64 @@ function valid_move(){
 		false; return
 	fi
 	#obstacles
+	echo
 	case ${map[$1,$2]} in
 		*SW*)
-		echo
 		echo -e "\033[31mWhoops. You hit a wall.\033[0m"
 		false; return;;
 		*TR*)
-		echo
 		echo -e "\033[31mThere's a river and you can't swim (yet).\033[0m"
 		false; return;;
 		*TD*)
-		echo
 		echo -e "\033[31mCannot proceed just yet, this door is locked.\033[0m"
 		false; return;;
 	esac
-
 	true; return
 }
 
+function scanmap(){
+	local cts=${map[$2,$3]}
+	if [[ ${cts} == I* ]]; then cts="I"; fi
+	
+	if [[ $4 == "g" ]]; then
+		if [[ -z $cts ]]; then
+			cts=" ";
+		else
+			cts=${c2g[$cts]}; 
+		fi
+	fi
+	
+	if [[ $4 == "t" ]]; then
+		if [[ -z $cts ]]; then
+			cts="nothing";
+		else
+			cts=${c2t[$cts]};
+		fi
+	fi
+	eval "$1=\$cts"
+}
+
 function minmap(){
-	
 	#oblique
-	nw=${map[$((p_x-1)),$((p_y+1))]}
-	if [[ -z $nw ]]; then nw=" ";
-	else
-		if [[ ${nw} == I* ]]; then nw="I"; fi
-		nw=${c2g[$nw]}
-	fi
-	
-	ne=${map[$((p_x+1)),$((p_y+1))]}
-	if [[ -z $ne ]]; then ne=" ";
-	else
-		if [[ ${ne} == I* ]]; then ne="I"; fi
-		ne=${c2g[$ne]}
-	fi
-	
-	sw=${map[$((p_x-1)),$((p_y-1))]}
-	if [[ -z $sw ]]; then sw=" ";
-	else 
-		if [[ ${sw} == I* ]]; then sw="I"; fi
-		sw=${c2g[$sw]}
-	fi
-	
-	se=${map[$((p_x+1)),$((p_y-1))]};
-	if [[ -z $se ]]; then se=" "; 
-	else 
-		if [[ ${se} == I* ]]; then se="I"; fi
-		se=${c2g[$se]}
-	fi
-	
+	scanmap nw $((p_x-1)) $((p_y+1)) g
+	scanmap ne $((p_x+1)) $((p_y+1)) g
+	scanmap sw $((p_x-1)) $((p_y-1)) g
+	scanmap se $((p_x+1)) $((p_y-1)) g
 	#non oblique
-	n=${map[$p_x,$((p_y+1))]}
-	if [[ -z $n ]]; then 
-		n=" ";
-	else 
-		if [[ ${n} == I* ]]; then n="I"; fi
-		n=${c2g[$n]}
-	fi
-	
-	s=${map[$p_x,$((p_y-1))]}
-	if [[ -z $s ]]; then 
-		s=" "; 
-	else 
-		if [[ ${s} == I* ]]; then s="I"; fi
-		s=${c2g[$s]}
-	fi
-	
-	e=${map[$((p_x+1)),$p_y]}
-	if [[ -z $e ]]; then 
-		e=" "; 
-	else
-		if [[ ${e} == I* ]]; then e="I"; fi
-		e=${c2g[$e]}
-	fi
-	
-	w=${map[$((p_x-1)),$p_y]}
-	if [[ -z $w ]]; then
-		w=" ";
-	else
-		if [[ ${w} == I* ]]; then w="I"; fi
-		w=${c2g[$w]}
-	fi
+	scanmap n $p_x $((p_y+1)) g
+	scanmap s $p_x $((p_y-1)) g
+	scanmap e $((p_x+1)) $p_y g
+	scanmap w $((p_x-1)) $p_y g
 
-	#case $p_dir in
-	#	east)	fl=$ne; fr=$se; f=$e; l=$n; r=$s; bl=$nw; br=$sw; b=$w;;
-	#	south)	fl=$se; fr=$sw; f=$s; l=$e; r=$w; bl=$ne; br=$nw; b=$n;;
-	#	west)	fl=$sw; fr=$nw; f=$w; l=$s; r=$n; bl=$se; br=$ne; b=$e;;
-	#	north) fl=$nw; fr=$ne; f=$n; l=$w; r=$e; bl=$sw; br=$se; b=$s;;
-	#esac
-
-	echo -e "$nw $n $ne"
-	echo -e "$w @ $e"
-	echo -e "$sw $s $se"
+	case $p_dir in
+		east)	fl=$ne; fr=$se; f=$e; l=$n; r=$s; bl=$nw; br=$sw; b=$w;;
+		south)	fl=$se; fr=$sw; f=$s; l=$e; r=$w; bl=$ne; br=$nw; b=$n;;
+		west)	fl=$sw; fr=$nw; f=$w; l=$s; r=$n; bl=$se; br=$ne; b=$e;;
+		north)	fl=$nw; fr=$ne; f=$n; l=$w; r=$e; bl=$sw; br=$se; b=$s;;
+	esac
+	echo -e "$fl $f $fr"
+	echo -e "$l\033[0m @ $r"
+	echo -e "$bl $b $br\033[0m"
 }
 
 # main cycle
@@ -177,40 +141,13 @@ do
 
 	if [[ $torch_lit == "1" ]]; then minmap; fi
 
-	np=${map[$p_x,$((p_y+1))]}
-	if [[ -z $np ]]; then np="nothing";
-	else
-		if [[ ${np} == I* ]]; then np="I"; fi
-		np=${c2t[$np]};
-	fi
-	
-	ep=${map[$((p_x+1)),$p_y]}
-	if [[ -z $ep ]]; then ep="nothing";
-	else
-		if [[ ${ep} == I* ]]; then ep="I"; fi
-		ep=${c2t[$ep]};
-	fi
-	
-	sp=${map[$p_x,$((p_y-1))]};
-	if [[ -z $sp ]]; then sp="nothing";
-	else
-		if [[ ${sp} == I* ]]; then sp="I"; fi
-		sp=${c2t[$sp]};
-	fi
-	
-	wp=${map[$((p_x-1)),$p_y]};
-	if [[ -z $wp ]]; then wp="nothing";
-	else
-		if [[ ${wp} == I* ]]; then wp="I"; fi
-		wp=${c2t[$wp]};
-	fi
-
 	case $p_dir in
-		east)	echo "There is $ep in front of you.";;
-		south)	echo "There is $sp in front of you.";;
-		west)	echo "There is $wp in front of you.";;
-		north)	echo "There is $np in front of you.";;
+		east)	scanmap fop $((p_x+1)) $p_y t;;
+		west)	scanmap fop $((p_x-1)) $p_y t;;
+		north)	scanmap fop $p_x $((p_y+1)) t;;
+		south)	scanmap fop $p_x $((p_y-1)) t;;
 	esac
+	echo "There is $fop in front of you."
 
 	if [[ ! -z ${map[$p_x,$p_y]} ]]; then
 		echo "Look! There is something over here:"
@@ -308,20 +245,23 @@ do
 				echo "Item <$to_drop> dropped."
 			fi;;
 		pu*|pickup*)
-			tmap=""
 			tarray=($t); to_pickup=${tarray[1]}
 			titems=${map[$p_x,$p_y]}
+			tmap=""
 			for item in ${titems[@]}; do
-				if [[ ${item} != "I$to_pickup" ]]; then
+				if [[ ${item} == "I$to_pickup" ]]; then
+					itemhere=1
+				else
 				tmap="$tmap $item"
 				fi
 			done
-			if [[ $tmap == $titems ]]; then
+			if [[ $itemhere != "1" ]]; then
 				echo "Nothing to pick up. Item <$to_pickup> not found around you"
 			else
 				bag="$bag $to_pickup"
-				map[$p_x,$p_y]=$tmap
+				map[$p_x,$p_y]=${tmap:1:100}
 				echo "Item <$to_pickup> picked up."
+				itemhere=0
 			fi;;
 		x|giveup)	game_over=9 ;;
 		help)
