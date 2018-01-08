@@ -54,7 +54,7 @@ c2g["TD"]="\033[31mD"
 c2g["I"]="\033[33mI"
 
 bag="coin paper"
-torch_lit=1
+torch_lit=0
 
 clear
 echo
